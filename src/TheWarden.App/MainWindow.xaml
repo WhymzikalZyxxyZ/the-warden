@@ -1,0 +1,61 @@
+<Window
+    x:Class="TheWarden.App.MainWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:core="using:TheWarden.Core.Scanning"
+    xmlns:quarantine="using:TheWarden.Core.Quarantine">
+
+    <Grid Padding="24" ColumnSpacing="24" RowSpacing="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="12">
+            <TextBlock Text="The Warden" FontSize="28" FontWeight="SemiBold" VerticalAlignment="Center"/>
+            <Button Content="Scan"
+                    Click="ScanButton_Click"
+                    IsEnabled="{x:Bind Not(ViewModel.IsBusy), Mode=OneWay}"/>
+            <ProgressRing IsActive="{x:Bind ViewModel.IsBusy, Mode=OneWay}" Width="20" Height="20"/>
+        </StackPanel>
+
+        <TextBlock Grid.Row="1" Text="{x:Bind ViewModel.StatusMessage, Mode=OneWay}" Opacity="0.8"/>
+
+        <Grid Grid.Row="2" ColumnDefinitions="*,*">
+            <StackPanel Grid.Column="0" Spacing="8">
+                <TextBlock Text="Findings" FontWeight="SemiBold"/>
+                <ListView ItemsSource="{x:Bind ViewModel.Findings, Mode=OneWay}">
+                    <ListView.ItemTemplate>
+                        <DataTemplate x:DataType="core:FileFinding">
+                            <Grid ColumnDefinitions="*,Auto" Padding="4">
+                                <StackPanel Grid.Column="0">
+                                    <TextBlock Text="{x:Bind FullPath}" TextTrimming="CharacterEllipsis"/>
+                                    <TextBlock Text="{x:Bind RuleDescription}" FontSize="11" Opacity="0.6"/>
+                                </StackPanel>
+                                <Button Grid.Column="1" Content="Quarantine" Click="QuarantineButton_Click"/>
+                            </Grid>
+                        </DataTemplate>
+                    </ListView.ItemTemplate>
+                </ListView>
+            </StackPanel>
+
+            <StackPanel Grid.Column="1" Spacing="8">
+                <TextBlock Text="Quarantine (restorable)" FontWeight="SemiBold"/>
+                <ListView ItemsSource="{x:Bind ViewModel.QuarantinedItems, Mode=OneWay}">
+                    <ListView.ItemTemplate>
+                        <DataTemplate x:DataType="quarantine:QuarantineRecord">
+                            <Grid ColumnDefinitions="*,Auto" Padding="4">
+                                <TextBlock Grid.Column="0" Text="{x:Bind OriginalPath}" TextTrimming="CharacterEllipsis"/>
+                                <Button Grid.Column="1" Content="Restore" Click="RestoreButton_Click"/>
+                            </Grid>
+                        </DataTemplate>
+                    </ListView.ItemTemplate>
+                </ListView>
+            </StackPanel>
+        </Grid>
+
+        <TextBlock Grid.Row="3" Text="{x:Bind ViewModel.HealthSummaryText, Mode=OneWay}" Opacity="0.6" FontSize="12"/>
+    </Grid>
+</Window>

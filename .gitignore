@@ -1,0 +1,40 @@
+## .NET
+bin/
+obj/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+## Visual Studio
+.vs/
+*.VC.db
+*.VC.VC.opendb
+
+## WinUI/MSIX packaging
+AppPackages/
+BundleArtifacts/
+Package.StoreAssociation.xml
+*.appx
+*.appxbundle
+*.appxsym
+*.msix
+*.cer
+
+## Publish output
+publish/
+PublishProfiles/*.user
+
+## Test / coverage
+TestResults/
+coverage/
+coverage-tmp/
+*.coverage
+*.coveragexml
+
+## Rider / JetBrains
+.idea/
+
+## OS cruft
+Thumbs.db
+.DS_Store
