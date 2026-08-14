@@ -47,8 +47,27 @@ public sealed class QuarantineManager
 
         var id = Guid.NewGuid();
         var quarantinedPath = Path.Combine(_quarantineRoot, $"{id:N}_{Path.GetFileName(finding.FullPath)}");
+        var fileName = Path.GetFileName(finding.FullPath);
 
-        File.Move(finding.FullPath, quarantinedPath);
+        try
+        {
+            File.Move(finding.FullPath, quarantinedPath);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            throw new QuarantineOperationException(
+                $"Couldn't quarantine '{fileName}' — access denied. " +
+                (finding.RequiresElevation
+                    ? "This location requires running The Warden as Administrator."
+                    : "Check that the file isn't protected by another program."),
+                ex);
+        }
+        catch (IOException ex)
+        {
+            throw new QuarantineOperationException(
+                $"Couldn't quarantine '{fileName}' — it may be open in another program right now.",
+                ex);
+        }
 
         var record = new QuarantineRecord(
             id,
@@ -83,7 +102,24 @@ public sealed class QuarantineManager
                 $"Cannot restore '{record.OriginalPath}' — its original directory no longer exists.");
         }
 
-        File.Move(record.QuarantinedPath, record.OriginalPath);
+        var fileName = Path.GetFileName(record.OriginalPath);
+
+        try
+        {
+            File.Move(record.QuarantinedPath, record.OriginalPath);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            throw new QuarantineOperationException(
+                $"Couldn't restore '{fileName}' — access denied restoring to its original location.",
+                ex);
+        }
+        catch (IOException ex)
+        {
+            throw new QuarantineOperationException(
+                $"Couldn't restore '{fileName}' — a file already exists at its original location, or it's open in another program.",
+                ex);
+        }
 
         var restored = record with { Restored = true, RestoredAtUtc = _clock.UtcNow };
         _records[index] = restored;
@@ -109,22 +145,38 @@ public sealed class QuarantineManager
             .Where(r => !r.Restored && r.QuarantinedAtUtc <= cutoff)
             .ToList();
 
+        // A file locked by another process shouldn't abort the whole batch — everything
+        // still deletable gets purged, and the manifest is only saved for what actually
+        // succeeded, so a mid-batch failure can never desync the manifest from disk.
+        var purgedCount = 0;
         foreach (var record in toPurge)
         {
-            if (File.Exists(record.QuarantinedPath))
+            try
             {
-                File.Delete(record.QuarantinedPath);
+                if (File.Exists(record.QuarantinedPath))
+                {
+                    File.Delete(record.QuarantinedPath);
+                }
+            }
+            catch (IOException)
+            {
+                continue;
+            }
+            catch (UnauthorizedAccessException)
+            {
+                continue;
             }
 
             _records.Remove(record);
+            purgedCount++;
         }
 
-        if (toPurge.Count > 0)
+        if (purgedCount > 0)
         {
             SaveManifest();
         }
 
-        return toPurge.Count;
+        return purgedCount;
     }
 
     private List<QuarantineRecord> LoadManifest()
