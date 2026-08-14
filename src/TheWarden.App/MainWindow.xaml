@@ -9,6 +9,7 @@
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
@@ -23,18 +24,37 @@
 
         <TextBlock Grid.Row="1" Text="{x:Bind ViewModel.StatusMessage, Mode=OneWay}" Opacity="0.8"/>
 
-        <Grid Grid.Row="2" ColumnDefinitions="*,*">
+        <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+            <TextBlock Text="VirusTotal API key:" VerticalAlignment="Center" Opacity="0.8"/>
+            <PasswordBox Password="{x:Bind ViewModel.ApiKeyInput, Mode=TwoWay}"
+                         Width="260"
+                         PlaceholderText="Paste your API key to enable reputation checks"
+                         Visibility="{x:Bind ViewModel.NeedsApiKey, Mode=OneWay}"/>
+            <Button Content="Save"
+                    Click="SaveApiKeyButton_Click"
+                    Visibility="{x:Bind ViewModel.NeedsApiKey, Mode=OneWay}"/>
+            <TextBlock Text="API key saved — reputation checks enabled."
+                       VerticalAlignment="Center"
+                       Opacity="0.7"
+                       Visibility="{x:Bind ViewModel.HasApiKey, Mode=OneWay}"/>
+            <Button Content="Remove key"
+                    Click="ClearApiKeyButton_Click"
+                    Visibility="{x:Bind ViewModel.HasApiKey, Mode=OneWay}"/>
+        </StackPanel>
+
+        <Grid Grid.Row="3" ColumnDefinitions="*,*">
             <StackPanel Grid.Column="0" Spacing="8">
                 <TextBlock Text="Findings" FontWeight="SemiBold"/>
                 <ListView ItemsSource="{x:Bind ViewModel.Findings, Mode=OneWay}">
                     <ListView.ItemTemplate>
                         <DataTemplate x:DataType="core:FileFinding">
-                            <Grid ColumnDefinitions="*,Auto" Padding="4">
+                            <Grid ColumnDefinitions="*,Auto,Auto" Padding="4">
                                 <StackPanel Grid.Column="0">
                                     <TextBlock Text="{x:Bind FullPath}" TextTrimming="CharacterEllipsis"/>
                                     <TextBlock Text="{x:Bind RuleDescription}" FontSize="11" Opacity="0.6"/>
                                 </StackPanel>
-                                <Button Grid.Column="1" Content="Quarantine" Click="QuarantineButton_Click"/>
+                                <Button Grid.Column="1" Content="Check Reputation" Click="CheckReputationButton_Click" Margin="0,0,8,0"/>
+                                <Button Grid.Column="2" Content="Quarantine" Click="QuarantineButton_Click"/>
                             </Grid>
                         </DataTemplate>
                     </ListView.ItemTemplate>
@@ -56,6 +76,6 @@
             </StackPanel>
         </Grid>
 
-        <TextBlock Grid.Row="3" Text="{x:Bind ViewModel.HealthSummaryText, Mode=OneWay}" Opacity="0.6" FontSize="12"/>
+        <TextBlock Grid.Row="4" Text="{x:Bind ViewModel.HealthSummaryText, Mode=OneWay}" Opacity="0.6" FontSize="12"/>
     </Grid>
 </Window>
