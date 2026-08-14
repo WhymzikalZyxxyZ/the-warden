@@ -60,19 +60,28 @@ public sealed partial class MainViewModel : ObservableObject
         IsBusy = true;
         StatusMessage = "Scanning known junk locations…";
 
-        var results = await Task.Run(() => _scanner.Scan());
+        try
+        {
+            var results = await Task.Run(() => _scanner.Scan());
 
-        Findings = new ObservableCollection<FileFinding>(results);
+            Findings = new ObservableCollection<FileFinding>(results);
 
-        var report = _healthReportService.Generate(results);
-        HealthReport = report;
-        HealthSummaryText = FormatHealthSummary(report);
+            var report = _healthReportService.Generate(results);
+            HealthReport = report;
+            HealthSummaryText = FormatHealthSummary(report);
 
-        StatusMessage = results.Count == 0
-            ? "No junk found. Your machine is tidy."
-            : $"Found {results.Count} item(s) — nothing has been touched yet.";
-
-        IsBusy = false;
+            StatusMessage = results.Count == 0
+                ? "No junk found. Your machine is tidy."
+                : $"Found {results.Count} item(s) — nothing has been touched yet.";
+        }
+        catch (Exception ex) when (ex is UnauthorizedAccessException or IOException)
+        {
+            StatusMessage = $"Scan couldn't finish — {ex.Message}";
+        }
+        finally
+        {
+            IsBusy = false;
+        }
     }
 
     [RelayCommand]
@@ -83,10 +92,22 @@ public sealed partial class MainViewModel : ObservableObject
             return;
         }
 
-        _quarantineManager.Quarantine(finding);
-        Findings.Remove(finding);
-        RefreshQuarantineList();
-        StatusMessage = $"Moved '{Path.GetFileName(finding.FullPath)}' to quarantine — restorable any time.";
+        try
+        {
+            _quarantineManager.Quarantine(finding);
+            Findings.Remove(finding);
+            RefreshQuarantineList();
+            StatusMessage = $"Moved '{Path.GetFileName(finding.FullPath)}' to quarantine — restorable any time.";
+        }
+        catch (QuarantineOperationException ex)
+        {
+            StatusMessage = ex.Message;
+        }
+        catch (FileNotFoundException)
+        {
+            StatusMessage = $"'{Path.GetFileName(finding.FullPath)}' is already gone — someone else removed it first.";
+            Findings.Remove(finding);
+        }
     }
 
     [RelayCommand]
@@ -97,9 +118,20 @@ public sealed partial class MainViewModel : ObservableObject
             return;
         }
 
-        _quarantineManager.Restore(record.Id);
-        RefreshQuarantineList();
-        StatusMessage = $"Restored '{Path.GetFileName(record.OriginalPath)}' to its original location.";
+        try
+        {
+            _quarantineManager.Restore(record.Id);
+            RefreshQuarantineList();
+            StatusMessage = $"Restored '{Path.GetFileName(record.OriginalPath)}' to its original location.";
+        }
+        catch (QuarantineOperationException ex)
+        {
+            StatusMessage = ex.Message;
+        }
+        catch (DirectoryNotFoundException ex)
+        {
+            StatusMessage = ex.Message;
+        }
     }
 
     private void RefreshQuarantineList()

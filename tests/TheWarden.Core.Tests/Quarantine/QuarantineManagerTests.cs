@@ -120,4 +120,65 @@ public class QuarantineManagerTests : IDisposable
 
         Assert.Throws<FileNotFoundException>(() => manager.Quarantine(FindingFor(missingPath)));
     }
+
+    [Fact]
+    public void Quarantine_throws_QuarantineOperationException_when_source_file_is_locked()
+    {
+        var sourcePath = CreateSourceFile("locked.tmp");
+        var manager = new QuarantineManager(_quarantineDir);
+
+        using var lockHandle = new FileStream(sourcePath, FileMode.Open, FileAccess.Read, FileShare.None);
+
+        var ex = Assert.Throws<QuarantineOperationException>(() => manager.Quarantine(FindingFor(sourcePath)));
+        Assert.Contains("locked.tmp", ex.Message);
+        Assert.IsType<IOException>(ex.InnerException);
+        Assert.Empty(manager.ListActive());
+    }
+
+    [Fact]
+    public void Restore_throws_QuarantineOperationException_when_something_already_occupies_the_original_path()
+    {
+        var sourcePath = CreateSourceFile("scratch.tmp");
+        var manager = new QuarantineManager(_quarantineDir);
+        var record = manager.Quarantine(FindingFor(sourcePath));
+
+        // Something else now lives where the file used to be — a real scenario, not
+        // just a locked handle (e.g. a new file happened to get created at that path
+        // while this one sat in quarantine).
+        File.WriteAllText(sourcePath, "someone else's file now");
+
+        var ex = Assert.Throws<QuarantineOperationException>(() => manager.Restore(record.Id));
+        Assert.Contains("scratch.tmp", ex.Message);
+        Assert.IsType<IOException>(ex.InnerException);
+        // The failed restore shouldn't have been marked restored or dropped from the active list.
+        Assert.Single(manager.ListActive());
+    }
+
+    [Fact]
+    public void PurgeOlderThan_skips_a_locked_file_but_still_purges_the_rest()
+    {
+        var lockedFilePath = CreateSourceFile("locked.tmp");
+        var freeFilePath = CreateSourceFile("free.tmp");
+
+        var clock = new FakeClock(new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc));
+        var manager = new QuarantineManager(_quarantineDir, clock);
+
+        var lockedRecord = manager.Quarantine(FindingFor(lockedFilePath));
+        var freeRecord = manager.Quarantine(FindingFor(freeFilePath));
+
+        clock.UtcNow = clock.UtcNow.AddDays(10);
+
+        using (new FileStream(lockedRecord.QuarantinedPath, FileMode.Open, FileAccess.Read, FileShare.None))
+        {
+            var purgedCount = manager.PurgeOlderThan(TimeSpan.Zero, "DELETE");
+
+            Assert.Equal(1, purgedCount);
+            Assert.False(File.Exists(freeRecord.QuarantinedPath));
+            Assert.True(File.Exists(lockedRecord.QuarantinedPath));
+        }
+
+        // The locked record stays active — it was never actually purged.
+        var stillActive = Assert.Single(manager.ListActive());
+        Assert.Equal(lockedRecord.Id, stillActive.Id);
+    }
 }
