@@ -184,6 +184,29 @@
                     </StackPanel>
                 </Grid>
             </PivotItem>
+
+            <!-- ══════════════════════════ Scan History ══════════════════════════ -->
+            <PivotItem Header="Scan History">
+                <ListView ItemsSource="{x:Bind ViewModel.ScanHistory, Mode=OneWay}">
+                    <ListView.ItemTemplate>
+                        <DataTemplate x:DataType="core:ScanHistoryEntry">
+                            <Grid ColumnDefinitions="160,110,Auto,Auto,Auto" Padding="4" ColumnSpacing="16">
+                                <TextBlock Grid.Column="0" Text="{x:Bind TimestampUtc}" FontSize="12" Opacity="0.8"/>
+                                <TextBlock Grid.Column="1" Text="{x:Bind Scope}" FontSize="12"/>
+                                <TextBlock Grid.Column="2" FontSize="12">
+                                    <Run Text="{x:Bind FilesChecked}"/>
+                                    <Run Text="checked"/>
+                                </TextBlock>
+                                <TextBlock Grid.Column="3" FontSize="12">
+                                    <Run Text="{x:Bind FilesFlagged}"/>
+                                    <Run Text="flagged"/>
+                                </TextBlock>
+                                <TextBlock Grid.Column="4" Text="{x:Bind Outcome}" FontSize="12" Opacity="0.7"/>
+                            </Grid>
+                        </DataTemplate>
+                    </ListView.ItemTemplate>
+                </ListView>
+            </PivotItem>
         </Pivot>
 
         <TextBlock Grid.Row="4" Text="{x:Bind ViewModel.HealthSummaryText, Mode=OneWay}" Opacity="0.6" FontSize="12"/>

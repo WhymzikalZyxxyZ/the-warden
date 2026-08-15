@@ -80,6 +80,7 @@ public sealed partial class MainViewModel : ObservableObject
     private static readonly TimeSpan ReputationCheckDelay = TimeSpan.FromSeconds(16);
 
     private readonly MalwareScanner _malwareScanner = new();
+    private readonly RegistryStartupScanner _registryScanner = new();
     private CancellationTokenSource? _malwareScanCts;
 
     [ObservableProperty]
@@ -120,6 +121,11 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty]
     private bool hasFlaggedMalware;
 
+    private readonly ScanHistoryStore _scanHistoryStore;
+
+    [ObservableProperty]
+    private ObservableCollection<ScanHistoryEntry> scanHistory = [];
+
     public MainViewModel()
     {
         var rulePack = RulePack.Default();
@@ -134,6 +140,8 @@ public sealed partial class MainViewModel : ObservableObject
         HasApiKey = _apiKeyStore.GetApiKey() is not null;
 
         _healthReportService = new HealthReportService(new WmiSystemHealthProbe());
+        _scanHistoryStore = new ScanHistoryStore(appDataRoot);
+        ScanHistory = new ObservableCollection<ScanHistoryEntry>(_scanHistoryStore.GetAll());
 
         MalwareFindings.CollectionChanged += (_, _) => HasFlaggedMalware = MalwareFindings.Count > 0;
 
@@ -322,6 +330,7 @@ public sealed partial class MainViewModel : ObservableObject
         _malwareScanCts?.Cancel();
         var cts = new CancellationTokenSource();
         _malwareScanCts = cts;
+        var outcome = ScanOutcome.Error;
 
         IsScanningForMalware = true;
         MalwareFindings.Clear();
@@ -337,7 +346,26 @@ public sealed partial class MainViewModel : ObservableObject
         try
         {
             var driveRoot = Path.GetPathRoot(Environment.SystemDirectory) ?? @"C:\";
-            var files = await Task.Run(() => _malwareScanner.Scan(scope, driveRoot, cts.Token), cts.Token);
+            var files = await Task.Run(() =>
+            {
+                var scanned = _malwareScanner.Scan(scope, driveRoot, cts.Token);
+                // Registry Run keys are one of the most common real persistence
+                // mechanisms — a filesystem walk alone never sees them. Whatever
+                // executable a startup entry actually resolves to gets folded into
+                // the same list and checked through the exact same pipeline as
+                // everything else; only entries that resolve to a file that still
+                // exists are included, since there's nothing to hash otherwise.
+                var startupFiles = _registryScanner.Scan()
+                    .Select(entry => entry.ResolvedExecutablePath)
+                    .Where(path => path is not null && File.Exists(path))
+                    .Select(path => new FileInfo(path!))
+                    .Select(info => new FileEntry(info.FullName, info.LastWriteTimeUtc, info.Length));
+
+                return scanned
+                    .Concat(startupFiles)
+                    .DistinctBy(f => f.FullPath, StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+            }, cts.Token);
 
             MalwareFilesFoundCount = files.Count;
             UpdateFileTypeBreakdown(files);
@@ -345,6 +373,7 @@ public sealed partial class MainViewModel : ObservableObject
             if (files.Count == 0)
             {
                 MalwareScanStatusText = "No executable-type files found in scope.";
+                outcome = ScanOutcome.Completed;
                 return;
             }
 
@@ -368,14 +397,17 @@ public sealed partial class MainViewModel : ObservableObject
             MalwareScanStatusText = MalwareFilesFlaggedCount == 0
                 ? $"Scan complete — {files.Count} file(s) checked, nothing flagged."
                 : $"Scan complete — {MalwareFilesFlaggedCount} of {files.Count} file(s) flagged for review.";
+            outcome = ScanOutcome.Completed;
         }
         catch (OperationCanceledException)
         {
             MalwareScanStatusText = $"Scan cancelled — {MalwareFilesCheckedCount} of {MalwareFilesFoundCount} checked before stopping.";
+            outcome = ScanOutcome.Cancelled;
         }
         catch (Exception ex) when (ex is UnauthorizedAccessException or IOException)
         {
             MalwareScanStatusText = $"Scan couldn't finish — {ex.Message}";
+            outcome = ScanOutcome.Error;
         }
         finally
         {
@@ -384,6 +416,9 @@ public sealed partial class MainViewModel : ObservableObject
             {
                 _malwareScanCts = null;
             }
+
+            _scanHistoryStore.Add(scope, MalwareFilesFoundCount, MalwareFilesCheckedCount, MalwareFilesFlaggedCount, outcome);
+            ScanHistory = new ObservableCollection<ScanHistoryEntry>(_scanHistoryStore.GetAll());
         }
     }
 
