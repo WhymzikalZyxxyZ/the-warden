@@ -38,4 +38,18 @@ public sealed partial class MainWindow : Window
             ViewModel.RestoreCommand.Execute(record);
         }
     }
+
+    private void SaveApiKeyButton_Click(object sender, RoutedEventArgs e) =>
+        ViewModel.SaveApiKeyCommand.Execute(null);
+
+    private void ClearApiKeyButton_Click(object sender, RoutedEventArgs e) =>
+        ViewModel.ClearApiKeyCommand.Execute(null);
+
+    private async void CheckReputationButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (((Button)sender).DataContext is FileFinding finding)
+        {
+            await ViewModel.CheckReputationCommand.ExecuteAsync(finding);
+        }
+    }
 }
