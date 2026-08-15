@@ -90,4 +90,35 @@ public class VirusTotalReputationClientTests
 
         Assert.Equal(ReputationStatus.LookupFailed, verdict.Status);
     }
+
+    private sealed class NeverRespondingHandler : HttpMessageHandler
+    {
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            await Task.Delay(Timeout.Infinite, cancellationToken);
+            throw new InvalidOperationException("unreachable — the delay above never completes normally");
+        }
+    }
+
+    [Fact]
+    public async Task LookupAsync_returns_LookupFailed_instead_of_throwing_when_the_request_times_out()
+    {
+        var httpClient = new HttpClient(new NeverRespondingHandler()) { Timeout = TimeSpan.FromMilliseconds(50) };
+        var client = new VirusTotalReputationClient(httpClient, "test-key");
+
+        var verdict = await client.LookupAsync(SampleHash);
+
+        Assert.Equal(ReputationStatus.LookupFailed, verdict.Status);
+    }
+
+    [Fact]
+    public async Task LookupAsync_still_propagates_cancellation_the_caller_actually_requested()
+    {
+        var httpClient = new HttpClient(new NeverRespondingHandler());
+        var client = new VirusTotalReputationClient(httpClient, "test-key");
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => client.LookupAsync(SampleHash, cts.Token));
+    }
 }

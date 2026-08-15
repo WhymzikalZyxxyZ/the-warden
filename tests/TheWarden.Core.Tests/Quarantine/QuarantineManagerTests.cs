@@ -210,4 +210,27 @@ public class QuarantineManagerTests : IDisposable
     // that's already a directory raises IOException instead, not UnauthorizedAccessException,
     // confirmed by running that case). The line is one straightforward statement —
     // `record.RequiresElevation` passed straight through — reviewed rather than tested.
+
+    [Fact]
+    public void Constructor_treats_a_corrupted_manifest_as_empty_instead_of_throwing()
+    {
+        Directory.CreateDirectory(_quarantineDir);
+        File.WriteAllText(Path.Combine(_quarantineDir, "manifest.json"), "{ this is not valid json truncated mid-w");
+
+        var manager = new QuarantineManager(_quarantineDir);
+
+        Assert.Empty(manager.ListActive());
+    }
+
+    [Fact]
+    public void SaveManifest_never_leaves_a_temp_file_behind_after_a_successful_write()
+    {
+        var sourcePath = CreateSourceFile("scratch.tmp");
+        var manager = new QuarantineManager(_quarantineDir);
+
+        manager.Quarantine(FindingFor(sourcePath));
+
+        var leftoverTempFiles = Directory.GetFiles(_quarantineDir, "manifest.json.*.tmp");
+        Assert.Empty(leftoverTempFiles);
+    }
 }

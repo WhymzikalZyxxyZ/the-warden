@@ -31,6 +31,14 @@ public sealed class VirusTotalReputationClient(HttpClient httpClient, string api
         {
             return new ReputationVerdict(sha256, ReputationStatus.LookupFailed, 0, 0);
         }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            // The ambient token wasn't cancelled, so this wasn't the caller stopping the
+            // sweep — it's HttpClient's own request timeout firing. That's a per-file
+            // failure, not a reason to take down the whole scan, so it's reported the
+            // same way a network error would be rather than rethrown.
+            return new ReputationVerdict(sha256, ReputationStatus.LookupFailed, 0, 0);
+        }
 
         if (response.StatusCode == HttpStatusCode.NotFound)
         {

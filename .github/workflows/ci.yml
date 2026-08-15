@@ -9,6 +9,8 @@ on:
 
 permissions:
   contents: write
+  id-token: write
+  attestations: write
 
 jobs:
   build-and-test:
@@ -94,8 +96,32 @@ jobs:
         shell: pwsh
         run: Compress-Archive -Path "${{ steps.publish-dir.outputs.dir }}\*" -DestinationPath TheWarden-portable-win-x64.zip
 
+      # Lets anyone verify the download wasn't altered in transit — no cert or
+      # secret needed, just a hash next to the file, same as most open-source
+      # releases publish.
+      - name: Generate SHA256 checksum
+        shell: pwsh
+        run: |
+          $hash = Get-FileHash -Path TheWarden-portable-win-x64.zip -Algorithm SHA256
+          "$($hash.Hash.ToLower())  TheWarden-portable-win-x64.zip" | Out-File -Encoding ascii TheWarden-portable-win-x64.zip.sha256
+
+      # Free alternative/complement to a purchased Authenticode certificate:
+      # cryptographically ties this exact release artifact to this exact repo,
+      # workflow, and commit via Sigstore, verifiable with `gh attestation verify`.
+      # Doesn't stop SmartScreen from warning on first run (that needs a trusted
+      # cert), but does give anyone a way to confirm the binary genuinely came
+      # from this build pipeline rather than somewhere else.
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@v1
+        with:
+          subject-path: |
+            TheWarden-portable-win-x64.zip
+            TheWarden-portable-win-x64.zip.sha256
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: TheWarden-portable-win-x64.zip
+          files: |
+            TheWarden-portable-win-x64.zip
+            TheWarden-portable-win-x64.zip.sha256
           generate_release_notes: true

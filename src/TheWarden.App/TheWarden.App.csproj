@@ -16,6 +16,14 @@
     <SelfContained>true</SelfContained>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+
+    <Authors>Whymzikal Zyxxyz</Authors>
+    <Company>Whymzikal Zyxxyz</Company>
+    <Product>The Warden</Product>
+    <Copyright>Copyright © Whymzikal Zyxxyz</Copyright>
+    <AssemblyTitle>The Warden</AssemblyTitle>
+    <Description>Safety-first Windows disk-hygiene and diagnostics tool.</Description>
+    <PackageProjectUrl>https://github.com/WhymzikalZyxxyZ/the-warden</PackageProjectUrl>
   </PropertyGroup>
 
   <ItemGroup>
