@@ -23,6 +23,8 @@ public class FileSystemScannerTests
 
         public IEnumerable<FileEntry> EnumerateFiles(string directory) =>
             filesByDirectory.TryGetValue(directory, out var files) ? files : [];
+
+        public IEnumerable<string> EnumerateDirectories(string directory) => [];
     }
 
     private static RulePack TempRulePack() => new()

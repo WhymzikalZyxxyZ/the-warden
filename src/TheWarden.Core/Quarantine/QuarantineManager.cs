@@ -192,13 +192,36 @@ public sealed class QuarantineManager
             return [];
         }
 
-        var json = File.ReadAllText(_manifestPath);
-        return JsonSerializer.Deserialize<List<QuarantineRecord>>(json) ?? [];
+        try
+        {
+            var json = File.ReadAllText(_manifestPath);
+            return JsonSerializer.Deserialize<List<QuarantineRecord>>(json) ?? [];
+        }
+        catch (JsonException)
+        {
+            // A manifest write that got interrupted mid-write (crash, forced shutdown,
+            // power loss — SaveManifest's own atomic replace should prevent this going
+            // forward, but a manifest from before that existed, or a still-in-flight
+            // write at the exact moment of a truly catastrophic interruption, could
+            // still leave truncated JSON on disk) shouldn't take the whole app down on
+            // next launch. The physically quarantined files are untouched either way —
+            // only the bookkeeping of what's active would need reconstructing.
+            return [];
+        }
     }
 
     private void SaveManifest()
     {
         var json = JsonSerializer.Serialize(_records, new JsonSerializerOptions { WriteIndented = true });
-        File.WriteAllText(_manifestPath, json);
+
+        // Write-to-temp-then-replace rather than writing _manifestPath directly: if the
+        // process is killed mid-write, the temp file is left corrupted (harmless, it's
+        // not the file anything reads from) and the real manifest is untouched — never
+        // a half-written manifest.json. File.Move(..., overwrite: true) on the same
+        // volume is an atomic rename, not a copy-then-delete, so there's no window where
+        // the destination doesn't exist.
+        var tempPath = _manifestPath + $".{Guid.NewGuid():N}.tmp";
+        File.WriteAllText(tempPath, json);
+        File.Move(tempPath, _manifestPath, overwrite: true);
     }
 }
