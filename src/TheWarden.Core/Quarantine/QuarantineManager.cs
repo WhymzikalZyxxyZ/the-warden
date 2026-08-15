@@ -60,7 +60,8 @@ public sealed class QuarantineManager
                 (finding.RequiresElevation
                     ? "This location requires running The Warden as Administrator."
                     : "Check that the file isn't protected by another program."),
-                ex);
+                ex,
+                requiresElevation: finding.RequiresElevation);
         }
         catch (IOException ex)
         {
@@ -76,7 +77,10 @@ public sealed class QuarantineManager
             finding.Category,
             finding.RuleDescription,
             finding.SizeBytes,
-            _clock.UtcNow);
+            _clock.UtcNow)
+        {
+            RequiresElevation = finding.RequiresElevation,
+        };
 
         _records.Add(record);
         SaveManifest();
@@ -111,8 +115,10 @@ public sealed class QuarantineManager
         catch (UnauthorizedAccessException ex)
         {
             throw new QuarantineOperationException(
-                $"Couldn't restore '{fileName}' — access denied restoring to its original location.",
-                ex);
+                $"Couldn't restore '{fileName}' — access denied restoring to its original location." +
+                (record.RequiresElevation ? " This location requires running The Warden as Administrator." : ""),
+                ex,
+                requiresElevation: record.RequiresElevation);
         }
         catch (IOException ex)
         {

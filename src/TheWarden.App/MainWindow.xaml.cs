@@ -52,4 +52,7 @@ public sealed partial class MainWindow : Window
             await ViewModel.CheckReputationCommand.ExecuteAsync(finding);
         }
     }
+
+    private void RelaunchElevatedButton_Click(object sender, RoutedEventArgs e) =>
+        ViewModel.RelaunchElevatedCommand.Execute(null);
 }

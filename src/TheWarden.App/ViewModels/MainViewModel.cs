@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Microsoft.UI.Xaml;
 using TheWarden.Core;
 using TheWarden.Core.Health;
 using TheWarden.Core.Quarantine;
@@ -62,6 +63,14 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty]
     private string apiKeyInput = string.Empty;
 
+    // Set true only when the most recent Quarantine/Restore failure was
+    // specifically an elevation problem — lets the UI offer "Relaunch as
+    // Administrator" instead of a dead-end error message. Reset on every
+    // command invocation so a stale flag can't linger past whatever
+    // actually caused it.
+    [ObservableProperty]
+    private bool lastOperationNeedsElevation;
+
     public MainViewModel()
     {
         var rulePack = RulePack.Default();
@@ -118,6 +127,8 @@ public sealed partial class MainViewModel : ObservableObject
             return;
         }
 
+        LastOperationNeedsElevation = false;
+
         try
         {
             _quarantineManager.Quarantine(finding);
@@ -128,6 +139,7 @@ public sealed partial class MainViewModel : ObservableObject
         catch (QuarantineOperationException ex)
         {
             StatusMessage = ex.Message;
+            LastOperationNeedsElevation = ex.RequiresElevation;
         }
         catch (FileNotFoundException)
         {
@@ -144,6 +156,8 @@ public sealed partial class MainViewModel : ObservableObject
             return;
         }
 
+        LastOperationNeedsElevation = false;
+
         try
         {
             _quarantineManager.Restore(record.Id);
@@ -153,10 +167,24 @@ public sealed partial class MainViewModel : ObservableObject
         catch (QuarantineOperationException ex)
         {
             StatusMessage = ex.Message;
+            LastOperationNeedsElevation = ex.RequiresElevation;
         }
         catch (DirectoryNotFoundException ex)
         {
             StatusMessage = ex.Message;
+        }
+    }
+
+    [RelayCommand]
+    private void RelaunchElevated()
+    {
+        if (ElevationRelauncher.TryRelaunchElevated())
+        {
+            Application.Current.Exit();
+        }
+        else
+        {
+            StatusMessage = "Elevation was cancelled — try again if you still want to remove that item.";
         }
     }
 
