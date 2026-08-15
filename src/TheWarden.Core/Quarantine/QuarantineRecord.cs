@@ -18,4 +18,12 @@ public sealed record QuarantineRecord(
 {
     public bool Restored { get; init; }
     public DateTime? RestoredAtUtc { get; init; }
+
+    /// <summary>
+    /// Carried over from the originating FileFinding at quarantine time so a later
+    /// Restore failure can tell the user "relaunch as Administrator" is actually
+    /// worth trying, instead of guessing from the restore failure alone. Defaults
+    /// false for manifests written before this field existed.
+    /// </summary>
+    public bool RequiresElevation { get; init; }
 }

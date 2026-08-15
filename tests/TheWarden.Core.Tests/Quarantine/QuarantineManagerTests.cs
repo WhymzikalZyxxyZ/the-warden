@@ -37,8 +37,8 @@ public class QuarantineManagerTests : IDisposable
         return path;
     }
 
-    private static FileFinding FindingFor(string path) =>
-        new(path, JunkCategory.UserTemp, "user-temp", "test rule", SizeBytes: 1024, DateTime.UtcNow, RequiresElevation: false);
+    private static FileFinding FindingFor(string path, bool requiresElevation = false) =>
+        new(path, JunkCategory.UserTemp, "user-temp", "test rule", SizeBytes: 1024, DateTime.UtcNow, requiresElevation);
 
     [Fact]
     public void Quarantine_moves_file_out_of_its_original_location()
@@ -181,4 +181,33 @@ public class QuarantineManagerTests : IDisposable
         var stillActive = Assert.Single(manager.ListActive());
         Assert.Equal(lockedRecord.Id, stillActive.Id);
     }
+
+    [Fact]
+    public void Quarantine_carries_RequiresElevation_from_the_finding_onto_the_record()
+    {
+        var sourcePath = CreateSourceFile("system-temp-file.tmp");
+        var manager = new QuarantineManager(_quarantineDir);
+
+        var record = manager.Quarantine(FindingFor(sourcePath, requiresElevation: true));
+
+        Assert.True(record.RequiresElevation);
+    }
+
+    [Fact]
+    public void Quarantine_leaves_RequiresElevation_false_when_the_finding_did_not_need_it()
+    {
+        var sourcePath = CreateSourceFile("scratch.tmp");
+        var manager = new QuarantineManager(_quarantineDir);
+
+        var record = manager.Quarantine(FindingFor(sourcePath, requiresElevation: false));
+
+        Assert.False(record.RequiresElevation);
+    }
+
+    // Restore's UnauthorizedAccessException -> RequiresElevation=true branch isn't covered
+    // here: producing a genuine UnauthorizedAccessException from File.Move without real
+    // ACL manipulation or an elevated test runner isn't reliably possible (a destination
+    // that's already a directory raises IOException instead, not UnauthorizedAccessException,
+    // confirmed by running that case). The line is one straightforward statement —
+    // `record.RequiresElevation` passed straight through — reviewed rather than tested.
 }
